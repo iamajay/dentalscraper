@@ -10,6 +10,7 @@ from app.utils.cache import cache
 from app.utils.notifications import TerminalNotification, EmailNotification
 from app.config import Config
 from app.database import SessionLocal
+from app.utils.logger import logger
 
 class Scraper:
     def __init__(self, page_limit: int, proxy: str = None):
@@ -40,21 +41,24 @@ class Scraper:
 
     async def fetch_page(self, session, url):
         retries = 5
-        delay = 1
+        delay = 2
 
         for attempt in range(retries):
             try:
                 async with session.get(url, proxy=self.proxy) as response:
+                    if response.status == 404:
+                        logger.error(f"Page not found: {url}")
+                        return None
                     response.raise_for_status()
                     return await response.text()
             except aiohttp.ClientError as e:
-                print(f"Error fetching {url}: {e}")
+                logger.error(f"Error fetching {url}: {e}")
                 if attempt < retries - 1:
-                    print(f"Retrying in {delay} seconds...")
+                    logger.info(f"Retrying in {delay} seconds...")
                     await asyncio.sleep(delay)
                     delay *= 2
                 else:
-                    print(f"Failed to fetch {url} after {retries} attempts.")
+                    logger.error(f"Failed to fetch {url} after {retries} attempts.")
                     return None
 
     async def scrape_page(self, session, page_number: int):
@@ -67,17 +71,16 @@ class Scraper:
         products = []
 
         for product in soup.select('.product'):
-            # title_tag = product.select_one('.woo-loop-product__title a')
-            # title = title_tag.text.strip() if title_tag else 'N/A'
-            title_tag = product.select_one('.add_to_cart_button')
-            title = title_tag['data-title'] if title_tag else 'N/A'
+            title_tag = product.select_one('.woo-loop-product__title a')
+            title = title_tag.text.strip() if title_tag else 'N/A'
             price_tag = product.select_one('.price ins .woocommerce-Price-amount.amount bdi')
+            if not price_tag:
+                price_tag = product.select_one('.price .woocommerce-Price-amount.amount bdi')
             price = float(price_tag.text.strip().replace('₹', '').replace(',', '')) if price_tag else 0.0
             image_tag = product.select_one('.mf-product-thumbnail img')
             image_url = image_tag['data-lazy-src'] if image_tag else 'N/A'
-            if (title or image_url) == 'N/A' or price == 0.0:
-                # import pdb;pdb.set_trace()
-                print(f"Error: Missing data in product on page {page_number}, title {title}, price {price}, image_url {image_url}")
+            if price == 0.0:
+                logger.error(f"Error: Missing price for a product on page {page_number}, maybe item out of stock")
                 continue
             products.append(Product(product_title=title, product_price=price, path_to_image=image_url))
 
