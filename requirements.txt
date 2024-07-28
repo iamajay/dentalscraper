@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+aiohttp
+beautifulsoup4
+sqlalchemy
+pydantic
+aiocache
+requests
