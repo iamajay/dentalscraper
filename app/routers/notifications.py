@@ -1,21 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from app.models import NotificationConfig, NotificationType, NotificationConfigDB
+from app.auth import get_current_user
+from app.models import NotificationConfig, NotificationConfigDB
 from app.config import Config
 from app.database import SessionLocal, init_db
 
 router = APIRouter()
-
-security = HTTPBearer()
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if credentials.credentials != Config.STATIC_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-        )
-    return credentials.credentials
 
 def get_db():
     db = SessionLocal()
