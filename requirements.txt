@@ -6,3 +6,4 @@ sqlalchemy
 pydantic
 aiocache
 requests
+aioresponses

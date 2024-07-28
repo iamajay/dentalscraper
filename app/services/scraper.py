@@ -13,7 +13,18 @@ from app.database import SessionLocal
 from app.utils.logger import logger
 
 class Scraper:
+    """
+    Scraper class to handle the scraping of product data from the website.
+    """
+
     def __init__(self, page_limit: int, proxy: str = None):
+        """
+        Initialize the Scraper with the specified page limit and optional proxy.
+
+        Args:
+            page_limit (int): The number of pages to scrape.
+            proxy (str): The proxy to use for HTTP requests, if any.
+        """
         self.page_limit = page_limit
         self.proxy = proxy
         self.base_url = "https://dentalstall.com/shop/"
@@ -22,6 +33,12 @@ class Scraper:
         self.notification = self.get_notification_instance()
 
     def get_notification_instance(self):
+        """
+        Get the notification instance based on the configuration in the database.
+
+        Returns:
+            Notification: The notification instance (TerminalNotification or EmailNotification).
+        """
         db = SessionLocal()
         db_config = db.query(NotificationConfigDB).first()
         db.close()
@@ -40,6 +57,19 @@ class Scraper:
             return TerminalNotification()
 
     async def fetch_page(self, session, url):
+        """
+        Fetch the content of a web page.
+
+        Args:
+            session (aiohttp.ClientSession): The HTTP client session.
+            url (str): The URL of the page to fetch.
+
+        Returns:
+            str: The HTML content of the page.
+
+        Raises:
+            Exception: If the page cannot be fetched after multiple attempts.
+        """
         retries = 5
         delay = 2
 
@@ -62,6 +92,16 @@ class Scraper:
                     return None
 
     async def scrape_page(self, session, page_number: int):
+        """
+        Scrape product data from a specific page.
+
+        Args:
+            session (aiohttp.ClientSession): The HTTP client session.
+            page_number (int): The page number to scrape.
+
+        Returns:
+            list: A list of Product objects.
+        """
         url = f"{self.base_url}page/{page_number}/"
         html = await self.fetch_page(session, url)
         if not html:
@@ -87,6 +127,12 @@ class Scraper:
         return products
 
     async def scrape(self):
+        """
+        Scrape product data from multiple pages.
+
+        Returns:
+            list: A list of all Product objects scraped.
+        """
         async with aiohttp.ClientSession() as session:
             tasks = [self.scrape_page(session, page) for page in range(1, self.page_limit + 1)]
             results = await asyncio.gather(*tasks)
@@ -94,6 +140,15 @@ class Scraper:
             return products
 
     async def cache_products(self, products: List[Product]):
+        """
+        Cache the scraped product data.
+
+        Args:
+            products (List[Product]): The list of Product objects.
+
+        Returns:
+            list: A list of new or updated Product objects.
+        """
         new_products = []
         for product in products:
             cached_price = await cache.get(product.product_title)
@@ -103,16 +158,28 @@ class Scraper:
         return new_products
 
     async def save_to_db(self, products: List[Product]):
+        """
+        Save the product data to the database.
+
+        Args:
+            products (List[Product]): The list of Product objects.
+        """
         try:
             with open('products.json', 'r') as f:
                 existing_products = json.load(f)
-        except (FileNotFoundError,json.JSONDecodeError):
+        except (FileNotFoundError, json.JSONDecodeError):
             existing_products = []
         existing_products.extend([product.dict() for product in products])
         with open('products.json', 'w') as f:
             json.dump(existing_products, f, indent=4)
 
     async def run(self):
+        """
+        Run the scraping process and notify the user.
+
+        Returns:
+            int: The number of products scraped and updated in the database.
+        """
         products = await self.scrape()
         updated_products = await self.cache_products(products)
         await self.save_to_db(updated_products)
