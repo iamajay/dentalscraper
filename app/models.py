@@ -9,7 +9,7 @@ class NotificationType(str, Enum):
     email = "email"
 
 class ScrapeSettings(BaseModel):
-    page_limit: int
+    page_limit: Optional[int] = 1
     proxy: Optional[str] = None
 
 class NotificationConfig(BaseModel):
